@@ -1,5 +1,5 @@
 # Frontend (public)
-app.disipay.com {
+app.domain.com {
     reverse_proxy frontend:80
     header {
         Strict-Transport-Security "max-age=31536000;"
@@ -7,7 +7,7 @@ app.disipay.com {
 }
 
 # Backend API (public or internal)
-api.disipay.com {
+api.domain.com {
     reverse_proxy backend:5678
     header {
         Strict-Transport-Security "max-age=31536000;"
@@ -15,7 +15,7 @@ api.disipay.com {
 }
 
 # OpenObserve UI (optional public exposure)
-log.disipay.com {
+log.domain.com {
     reverse_proxy openobserve:5080
     header {
         Strict-Transport-Security "max-age=31536000;"
