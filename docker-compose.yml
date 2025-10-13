@@ -1,0 +1,103 @@
+version: "3.8"
+
+services:
+  # Caddy (reverse proxy + AutoTLS)
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - web
+      - observability
+
+  # OpenObserve (optional, for logs UI & ingestion)
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    container_name: openobserve
+    restart: unless-stopped
+    environment:
+      - ZO_ROOT_USER_EMAIL=${OO_ADMIN_EMAIL:-admin@wisipay.com}
+      - ZO_ROOT_USER_PASSWORD=${OO_ADMIN_PASSWORD:-Wisipay@2025}
+      - ZO_DATA_DIR=/data
+      - PORT=5080
+    volumes:
+      - openobserve-data:/data
+    expose:
+      - "5080"
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # Fluent Bit (collect docker json logs -> OpenObserve)
+  fluent-bit:
+    image: fluent/fluent-bit:2.2.0
+    container_name: fluent-bit
+    restart: unless-stopped
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
+    depends_on:
+      - openobserve
+    networks:
+      - observability
+      - web
+
+  # FRONTEND: example nginx demo image from Docker Hub
+  frontend:
+    image: nginxdemos/hello:latest
+    container_name: frontend
+    restart: unless-stopped
+    env_file:
+      - ./.env.frontend
+    expose:
+      - "80"
+    networks:
+      - web
+      - observability
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # BACKEND: tiny echo server (HashiCorp http-echo)
+  backend:
+    image: hashicorp/http-echo:0.2.3
+    container_name: backend
+    restart: unless-stopped
+    command: ["-text", "hello from backend"]
+    env_file:
+      - ./.env.backend
+    expose:
+      - "5678"
+    networks:
+      - web
+      - observability
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  openobserve-data:
+
+networks:
+  web:
+    driver: bridge
+  observability:
+    driver: bridge
