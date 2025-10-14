@@ -21,7 +21,7 @@ docker logs -f openobserve
 docker logs -f fluent-bit
 
 # 6. Access services
-# Frontend: https://dashboard.domain.com
+# Frontend: https://app.domain.com
 # Backend:  https://api.domain.com
 # Logs UI:  https://log.domain.com
 
