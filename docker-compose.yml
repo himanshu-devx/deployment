@@ -1,7 +1,6 @@
 version: "3.8"
 
 services:
-  # Caddy (reverse proxy + AutoTLS)
   caddy:
     image: caddy:latest
     container_name: caddy
@@ -17,84 +16,131 @@ services:
       - web
       - observability
 
-  # OpenObserve (optional, for logs UI & ingestion)
-  openobserve:
-    image: public.ecr.aws/zinclabs/openobserve:latest
-    container_name: openobserve
-    restart: unless-stopped
-    environment:
-      - ZO_ROOT_USER_EMAIL=${OO_ADMIN_EMAIL:-admin@wisipay.com}
-      - ZO_ROOT_USER_PASSWORD=${OO_ADMIN_PASSWORD:-Wisipay@2025}
-      - ZO_DATA_DIR=/data
-      - PORT=5080
-    volumes:
-      - openobserve-data:/data
-    expose:
-      - "5080"
-    networks:
-      - observability
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5080/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-
-  # Fluent Bit (collect docker json logs -> OpenObserve)
-  fluent-bit:
-    image: fluent/fluent-bit:2.2.0
-    container_name: fluent-bit
-    restart: unless-stopped
-    volumes:
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - ./fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
-      - ./fluent-bit/parsers.conf:/fluent-bit/etc/parsers.conf:ro
-    depends_on:
-      - openobserve
-    networks:
-      - observability
-      - web
-
-  # FRONTEND: example nginx demo image from Docker Hub
   frontend:
     image: nginxdemos/hello:latest
     container_name: frontend
     restart: unless-stopped
-    env_file:
-      - ./.env.frontend
     expose:
       - "80"
-    networks:
-      - web
-      - observability
+    env_file:
+      - ./.env.frontend
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - web
+      - observability
 
-  # BACKEND: tiny echo server (HashiCorp http-echo)
   backend:
     image: hashicorp/http-echo:0.2.3
     container_name: backend
-    restart: unless-stopped
     command: ["-text", "hello from backend"]
-    env_file:
-      - ./.env.backend
+    restart: unless-stopped
     expose:
       - "5678"
-    networks:
-      - web
-      - observability
+    env_file:
+      - ./.env.backend
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - web
+      - observability
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - observability
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+      - ./promtail/promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    networks:
+      - observability
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - observability
+      - web
+
+  cadvisor:
+    image: gcr.io/google-containers/cadvisor:latest
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - observability
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    network_mode: "host"
+    pid: "host"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+    networks:
+      - observability
+
+  grafana:
+    image: grafana/grafana:9.5.0
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - web
+      - observability
 
 volumes:
   caddy_data:
   caddy_config:
-  openobserve-data:
+  loki_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   web:
