@@ -1,23 +1,86 @@
+# ==============================
 # Frontend (public)
+# ==============================
 app.domain.com {
     reverse_proxy frontend:80
+
     header {
         Strict-Transport-Security "max-age=31536000;"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+    }
+
+    encode zstd gzip
+    log {
+        output file /var/log/caddy/frontend.access.log {
+            roll_size 10MB
+            roll_keep 3
+        }
+        format single_field common_log
     }
 }
 
-# Backend API (public or internal)
+# ==============================
+# Backend API (public)
+# ==============================
 api.domain.com {
     reverse_proxy backend:5678
+
     header {
         Strict-Transport-Security "max-age=31536000;"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+    }
+
+    encode zstd gzip
+    log {
+        output file /var/log/caddy/backend.access.log {
+            roll_size 10MB
+            roll_keep 3
+        }
+        format single_field common_log
     }
 }
 
-# OpenObserve UI (optional public exposure)
-log.domain.com {
-    reverse_proxy openobserve:5080
+# ==============================
+# Grafana (Logs + Metrics UI)
+# ==============================
+logs.domain.com {
+    reverse_proxy grafana:3000
+
     header {
         Strict-Transport-Security "max-age=31536000;"
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+    }
+
+    encode zstd gzip
+    log {
+        output file /var/log/caddy/grafana.access.log {
+            roll_size 10MB
+            roll_keep 3
+        }
+        format single_field common_log
     }
 }
+
+# ==============================
+# (Optional) Internal Monitoring Access
+# ==============================
+# Uncomment if you want Prometheus/cAdvisor externally visible
+# metrics.domain.com {
+#     reverse_proxy prometheus:9090
+#     header {
+#         Strict-Transport-Security "max-age=31536000;"
+#     }
+# }
+
+# system.domain.com {
+#     reverse_proxy cadvisor:8080
+#     header {
+#         Strict-Transport-Security "max-age=31536000;"
+#     }
+# }
