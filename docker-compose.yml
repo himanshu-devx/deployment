@@ -101,12 +101,13 @@ services:
     networks:
       - observability
 
+  # node-exporter: use port mapping (no host.network_mode) to avoid compose error
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
     restart: unless-stopped
-    network_mode: "host"
-    pid: "host"
+    ports:
+      - "9100:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -114,6 +115,7 @@ services:
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points=^/(sys|proc|dev|host|etc)($|/)'
     networks:
       - observability
 
