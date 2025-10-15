@@ -2,14 +2,14 @@
 # Frontend (public)
 # ==============================
 app.domain.com {
-    reverse_proxy frontend:80
+    reverse_proxy frontend:3000
 }
 
 # ==============================
 # Backend API (public)
 # ==============================
 api.domain.com {
-    reverse_proxy backend:5678
+    reverse_proxy backend:3000
 }
 
 # ==============================

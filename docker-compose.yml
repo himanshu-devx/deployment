@@ -17,11 +17,9 @@ services:
       - observability
 
   frontend:
-    image: nginxdemos/hello:latest
+    image: watcherdevx/multi-fintech-dashboard:v1
     container_name: frontend
     restart: unless-stopped
-    expose:
-      - "80"
     env_file:
       - ./.env.frontend
     logging:
@@ -34,12 +32,9 @@ services:
       - observability
 
   backend:
-    image: hashicorp/http-echo:0.2.3
+    image: watcherdevx/multi-fintech-backend:latest
     container_name: backend
-    command: ["-text", "hello from backend"]
     restart: unless-stopped
-    expose:
-      - "5678"
     env_file:
       - ./.env.backend
     logging:
